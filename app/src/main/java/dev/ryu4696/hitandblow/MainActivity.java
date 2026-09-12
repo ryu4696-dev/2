@@ -13,7 +13,7 @@ public class MainActivity extends Activity {
  @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setNavigationBarColor(Color.BLACK);setContentView(new Game());}
  class Game extends View {
   final int[] C={0xff2459df,0xffed3838,0xff25bd43,0xffffd21d,0xffe85ccf,0xffe9eeeb};
-  final float[] CX={.1190f,.2178f,.3184f,.4186f,.5183f,.6178f,.7175f,.8174f};
+  final float[] CX={.1190f,.2178f,.3184f,.4186f,.5183f,.6178f,.7175f,.8020f};
   final float[] SY={.4078f,.5064f,.6038f,.7010f};
   final float[] PX={.3118f,.3906f,.4688f,.5464f,.6243f,.7026f};
   final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);final Path path=new Path();final Bitmap bg;
@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
    peg(c,.405f*w,.047f*h,h*.014f,true);text(c,"ヒット",.448f*w,.058f*h,h*.030f,0xffffecd0);peg(c,.535f*w,.047f*h,h*.014f,false);text(c,"ブロー",.585f*w,.058f*h,h*.030f,0xffffecd0);
    int active=Math.min(7,tries.size());p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(h*.005f);p.setShadowLayer(h*.012f,0,0,0xffff35cf);p.setColor(0xffff63d6);c.drawCircle(CX[active]*w,.181f*h,h*.045f,p);p.clearShadowLayer();
    for(int col=0;col<8;col++){int[]v=col<tries.size()?tries.get(col):(col==tries.size()&&!ended?now:null);if(v!=null)for(int s=0;s<4;s++)if(v[s]>=0&&!(col==tries.size()&&s==movingSlot&&putT<1))marble(c,CX[col]*w,SY[s]*h,mr,v[s]);if(col<marks.size()){int hit=marks.get(col)[0],blow=marks.get(col)[1],n=0,show=col==markCol?(int)(pinT*4.01f):4;for(int k=0;k<hit;k++,n++)if(n<show)peg(c,(CX[col]+(n%2==0?-.012f:.012f))*w,(.262f+(n/2)*.047f)*h,pr,true);for(int k=0;k<blow;k++,n++)if(n<show)peg(c,(CX[col]+(n%2==0?-.012f:.012f))*w,(.262f+(n/2)*.047f)*h,pr,false);}}
-   float ax=.918f*w;for(int i=0;i<4;i++)marble(c,ax,SY[i]*h,mr,answer[i]);float yoff=lidT*h*.57f;RectF lid=new RectF(.888f*w,.325f*h-yoff,.949f*w,.725f*h-yoff);rr(c,lid,h*.018f,0xff25282a);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(h*.004f);p.setColor(0xffa98a55);c.drawRoundRect(lid,h*.018f,h*.018f,p);if(lidT<.85f){text(c,"◆",lid.centerX(),lid.centerY()+h*.015f,h*.055f,0xff9f895e);}
+   float ax=.918f*w;for(int i=0;i<4;i++)marble(c,ax,SY[i]*h,mr,answer[i]);float lidBottom=(.725f-.400f*lidT)*h;if(lidBottom>.326f*h){RectF lid=new RectF(.888f*w,.325f*h,.949f*w,lidBottom);rr(c,lid,h*.018f,0xff25282a);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(h*.004f);p.setColor(0xffa98a55);c.drawRoundRect(lid,h*.018f,h*.018f,p);if(lidT<.70f)text(c,"◆",lid.centerX(),lid.centerY()+h*.015f,h*.055f,0xff9f895e);}
    palette.clear();for(int i=0;i<6;i++){float x=PX[i]*w,y=.855f*h;palette.add(new RectF(x-mr*1.3f,y-mr*1.3f,x+mr*1.3f,y+mr*1.3f));marble(c,x,y,mr,i);}
    undo.set(.785f*w,.835f*h,.855f*w,.925f*h);ok.set(.865f*w,.825f*h,.958f*w,.925f*h);rr(c,undo,h*.018f,0xff292b2c);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);p.setColor(0xffb89a68);c.drawRoundRect(undo,h*.018f,h*.018f,p);text(c,"↶",undo.centerX(),undo.centerY()+h*.012f,h*.038f,0xffe8ddc9);rr(c,ok,h*.019f,filled()==4||ended?0xff9a6c2e:0xff45413b);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);p.setColor(0xffd1b47c);c.drawRoundRect(ok,h*.019f,h*.019f,p);text(c,ended?"NEW":"OK",ok.centerX(),ok.centerY()+h*.012f,h*.034f,0xfffff1d1);
    gear.set(.843f*w,.015f*h,.91f*w,.095f*h);restart.set(.925f*w,.015f*h,.985f*w,.095f*h);
