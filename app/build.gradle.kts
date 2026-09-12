@@ -8,8 +8,8 @@ android {
         applicationId = "dev.ryu4696.hitandblow"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "3.0"
+        versionCode = 4
+        versionName = "4.0"
     }
 
     buildTypes {
