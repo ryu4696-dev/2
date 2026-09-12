@@ -1,85 +1,66 @@
 package dev.ryu4696.hitandblow;
 
-import android.app.Activity;
-import android.os.Bundle;
-import android.view.HapticFeedbackConstants;
-import android.view.MotionEvent;
-import android.view.View;
-import android.graphics.*;
 import android.animation.ValueAnimator;
+import android.app.Activity;
+import android.graphics.*;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
-import android.view.animation.DecelerateInterpolator;
-import android.view.animation.OvershootInterpolator;
+import android.os.Bundle;
+import android.view.*;
+import android.view.animation.*;
 import java.util.*;
 
 public class MainActivity extends Activity {
-    @Override public void onCreate(Bundle state) {
-        super.onCreate(state); getWindow().setStatusBarColor(Color.TRANSPARENT);
-        getWindow().setNavigationBarColor(0xff292929); setContentView(new BoardView());
-    }
-    private class BoardView extends View {
-        final int[] COLORS={0xff1596d2,0xffe94b45,0xff65ad4e,0xffffcc35,0xffe85b9e,0xffecebe6};
-        final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
-        final ArrayList<int[]> guesses=new ArrayList<>(), results=new ArrayList<>(), paletteColors=new ArrayList<>();
-        final ArrayList<RectF> palette=new ArrayList<>();
-        final RectF ok=new RectF(), back=new RectF(), reset=new RectF(), duplicate=new RectF();
-        final int[] current={-1,-1,-1,-1}; int[] answer=new int[4];
-        int selected=-1; boolean answerDuplicates=false, ended=false;
-        String message="色の玉を4つ並べよう"; float d;
-        float placeT=1f, pinT=1f, revealT=0f, celebrateT=0f;
-        float slotStartX, currentY, slotGap, paletteY;
-        int movingColor=-1, movingSlot=-1, animatedRow=-1;
-        boolean victory=false;
-        final ToneGenerator tones=new ToneGenerator(AudioManager.STREAM_MUSIC,38);
+ @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(Color.TRANSPARENT);getWindow().setNavigationBarColor(Color.BLACK);setContentView(new Game());}
 
-        BoardView(){super(MainActivity.this);d=getResources().getDisplayMetrics().density;setLayerType(View.LAYER_TYPE_SOFTWARE,null);newGame();}
-        void newGame(){guesses.clear();results.clear();Arrays.fill(current,-1);selected=-1;ended=false;victory=false;placeT=pinT=1f;revealT=celebrateT=0f;ArrayList<Integer> bag=new ArrayList<>();for(int i=0;i<6;i++)bag.add(i);Collections.shuffle(bag);Random r=new Random();for(int i=0;i<4;i++)answer[i]=answerDuplicates?r.nextInt(6):bag.get(i);message="色の玉を4つ並べよう";invalidate();}
-        void txt(Canvas c,String s,float x,float y,float size,int color,Paint.Align align){p.setShader(null);p.setStyle(Paint.Style.FILL);p.setTypeface(Typeface.create("sans",Typeface.BOLD));p.setTextAlign(align);p.setTextSize(size);p.setColor(color);c.drawText(s,x,y,p);}
-        void rr(Canvas c,RectF r,float rad,int color){p.setShader(null);p.setStyle(Paint.Style.FILL);p.setColor(color);c.drawRoundRect(r,rad,rad,p);}
-        void hole(Canvas c,float x,float y,float r){p.setShadowLayer(r*.25f,0,r*.15f,0x66000000);p.setColor(0xffb9b7b0);p.setStyle(Paint.Style.FILL);c.drawCircle(x,y,r,p);p.clearShadowLayer();p.setColor(0x55ffffff);c.drawCircle(x-r*.22f,y-r*.28f,r*.22f,p);}
-        void ball(Canvas c,float x,float y,float r,int color){
-            p.setShadowLayer(r*.34f,0,r*.24f,0x88000000);p.setStyle(Paint.Style.FILL);
-            p.setShader(new RadialGradient(x-r*.32f,y-r*.38f,r*1.28f,new int[]{mix(color,Color.WHITE,.48f),color,mix(color,Color.BLACK,.42f)},new float[]{0,.48f,1},Shader.TileMode.CLAMP));c.drawCircle(x,y,r,p);p.clearShadowLayer();p.setShader(null);
-            p.setColor(0xaaffffff);c.drawOval(new RectF(x-r*.47f,y-r*.55f,x-r*.08f,y-r*.18f),p);p.setColor(0x33000000);c.drawArc(new RectF(x-r*.74f,y-r*.74f,x+r*.74f,y+r*.74f),18,105,false,p);
-        }
-        int mix(int a,int b,float t){return Color.rgb((int)(Color.red(a)*(1-t)+Color.red(b)*t),(int)(Color.green(a)*(1-t)+Color.green(b)*t),(int)(Color.blue(a)*(1-t)+Color.blue(b)*t));}
-        void animate(ValueAnimator a){a.addUpdateListener(v->invalidate());a.start();}
-        @Override protected void onDraw(Canvas c){
-            float w=getWidth(),h=getHeight();p.setShader(new LinearGradient(0,0,w,h,0xffeeeeea,0xffc8c6bf,Shader.TileMode.CLAMP));c.drawRect(0,0,w,h,p);p.setShader(null);
-            float side=Math.max(12*d,w*.025f),top=13*d;
-            p.setColor(0x22000000);for(int i=0;i<18;i++){float yy=(i*53*d)%(h+40*d)-20*d;c.drawLine(0,yy,w,yy+10*d,p);}
-            txt(c,"HIT & BLOW",side,top+18*d,19*d,0xff323232,Paint.Align.LEFT);
-            txt(c,"● ヒット：色と場所が正解",side,top+40*d,10*d,0xff764b32,Paint.Align.LEFT);txt(c,"○ ブロー：色だけ正解",side+151*d,top+40*d,10*d,0xff555555,Paint.Align.LEFT);
-            reset.set(w-side-86*d,top,w-side,top+32*d);rr(c,reset,16*d,0xff555555);txt(c,"やり直す",reset.centerX(),reset.centerY()+4*d,10*d,Color.WHITE,Paint.Align.CENTER);
-            duplicate.set(w-side-207*d,top,w-side-95*d,top+32*d);rr(c,duplicate,16*d,answerDuplicates?0xffd45f45:0xff77736e);txt(c,"答えの同色 "+(answerDuplicates?"あり":"なし"),duplicate.centerX(),duplicate.centerY()+4*d,9*d,Color.WHITE,Paint.Align.CENTER);
-            float boardTop=top+54*d,boardBottom=h-79*d,rowH=(boardBottom-boardTop)/8f,boardLeft=side,boardRight=w-side;rr(c,new RectF(boardLeft,boardTop,boardRight,boardBottom),10*d,0xffdedcd5);
-            float numberX=boardLeft+22*d,ballsStart=boardLeft+68*d,ballGap=Math.min(42*d,(w*.43f)/4f),br=Math.min(14*d,rowH*.29f),feedbackX=ballsStart+4*ballGap+35*d;
-            slotStartX=ballsStart;slotGap=ballGap;currentY=boardTop+rowH*(guesses.size()+.5f);
-            for(int row=0;row<8;row++){
-                float y=boardTop+rowH*(row+.5f);if(row==guesses.size()&&!ended)rr(c,new RectF(boardLeft+5*d,boardTop+row*rowH+3*d,boardRight-5*d,boardTop+(row+1)*rowH-3*d),7*d,0x66ffffff);
-                txt(c,String.valueOf(row+1),numberX,y+4*d,10*d,0xff77736d,Paint.Align.CENTER);int[] vals=row<guesses.size()?guesses.get(row):(row==guesses.size()?current:null);
-                for(int j=0;j<4;j++){float x=ballsStart+j*ballGap;hole(c,x,y,br);if(vals!=null&&vals[j]>=0&&!(row==guesses.size()&&j==movingSlot&&placeT<1f))ball(c,x,y,br*.9f,COLORS[vals[j]]);}
-                for(int k=0;k<4;k++){float fx=feedbackX+(k%2)*15*d,fy=y+(k/2-.5f)*15*d;hole(c,fx,fy,4.7f*d);}
-                if(row<results.size()){int hit=results.get(row)[0],blow=results.get(row)[1],n=0,show=row==animatedRow?(int)Math.floor(pinT*4.01f):4;for(int k=0;k<hit;k++,n++)if(n<show){float fx=feedbackX+(n%2)*15*d,fy=y+(n/2-.5f)*15*d;ball(c,fx,fy,4.2f*d,0xff9b6039);}for(int k=0;k<blow;k++,n++)if(n<show){float fx=feedbackX+(n%2)*15*d,fy=y+(n/2-.5f)*15*d;ball(c,fx,fy,4.2f*d,0xfffaf9f5);}}
-                if(row<7){p.setColor(0x33706d68);p.setStrokeWidth(1);c.drawLine(boardLeft+9*d,boardTop+(row+1)*rowH,boardRight-9*d,boardTop+(row+1)*rowH,p);}
-            }
-            float infoX=feedbackX+52*d;txt(c,ended?"ANSWER":"TURN",infoX,boardTop+24*d,10*d,0xff6b6862,Paint.Align.LEFT);txt(c,ended?"":String.valueOf(guesses.size()+1)+" / 8",infoX,boardTop+58*d,22*d,0xff343434,Paint.Align.LEFT);
-            if(ended){for(int i=0;i<4;i++)ball(c,infoX+i*34*d,boardTop+57*d,11*d,COLORS[answer[i]]);float lidY=boardTop+36*d-revealT*48*d;RectF lid=new RectF(infoX-9*d,lidY,infoX+119*d,lidY+43*d);rr(c,lid,7*d,0xff7b5539);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2*d);p.setColor(0x55ffffff);c.drawRoundRect(lid,7*d,7*d,p);}
-            txt(c,message,infoX,boardTop+108*d,11*d,0xff333333,Paint.Align.LEFT);
-            if(!ended){txt(c,"選んだ玉は順番に入ります",infoX,boardTop+122*d,9*d,0xff77736d,Paint.Align.LEFT);txt(c,"予想には同じ色も何度でも使えます",infoX,boardTop+141*d,9*d,0xff77736d,Paint.Align.LEFT);}
-            float cy=h-40*d,palGap=Math.min(47*d,(w*.48f)/6f),palStart=side+25*d;paletteY=cy;palette.clear();for(int i=0;i<6;i++){float x=palStart+i*palGap;RectF r=new RectF(x-19*d,cy-19*d,x+19*d,cy+19*d);palette.add(r);hole(c,x,cy,16*d);if(i==selected){p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(3*d);p.setColor(0xff3d3a36);c.drawCircle(x,cy,20*d,p);}ball(c,x,cy,14*d,COLORS[i]);}
-            back.set(w-side-184*d,h-59*d,w-side-120*d,h-21*d);rr(c,back,19*d,0xff77736e);txt(c,"もどす",back.centerX(),back.centerY()+4*d,10*d,Color.WHITE,Paint.Align.CENTER);
-            ok.set(w-side-108*d,h-61*d,w-side,h-19*d);rr(c,ok,21*d,ended?0xffde7337:(filled()==4?0xffe86a32:0xffaaa7a1));txt(c,ended?"もう一度":"OK",ok.centerX(),ok.centerY()+5*d,13*d,Color.WHITE,Paint.Align.CENTER);
-            if(placeT<1f&&movingColor>=0&&movingColor<palette.size()){float sx=palette.get(movingColor).centerX(),sy=paletteY,ex=slotStartX+movingSlot*slotGap,ey=currentY;float t=placeT,x=sx+(ex-sx)*t,y=sy+(ey-sy)*t-(float)Math.sin(Math.PI*t)*38*d;ball(c,x,y,14*d*(1f+.12f*(float)Math.sin(Math.PI*t)),COLORS[movingColor]);}
-            if(victory&&celebrateT>0){for(int i=0;i<26;i++){float phase=(i*.137f+celebrateT)%1f,x=(i*97%Math.max(1,(int)w)),y=phase*h;p.setColor(COLORS[i%6]);p.setStyle(Paint.Style.FILL);c.save();c.rotate(i*31+celebrateT*360,x,y);c.drawRect(x-3*d,y-6*d,x+3*d,y+6*d,p);c.restore();}}
-        }
-        int filled(){int n=0;for(int v:current)if(v>=0)n++;return n;}
-        void choose(int value){if(ended)return;int n=filled();if(n<4){current[n]=value;selected=value;movingColor=value;movingSlot=n;placeT=0;tones.startTone(ToneGenerator.TONE_PROP_BEEP,35);ValueAnimator a=ValueAnimator.ofFloat(0,1);a.setDuration(310);a.setInterpolator(new OvershootInterpolator(.7f));a.addUpdateListener(v->placeT=(float)v.getAnimatedValue());animate(a);performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);}}
-        void undo(){int n=filled();if(n>0)current[n-1]=-1;selected=n>1?current[n-2]:-1;}
-        void judge(){if(ended){newGame();return;}if(filled()<4){message="4つ並べてからOK";return;}boolean[] usedA=new boolean[4],usedG=new boolean[4];int hit=0,blow=0;for(int i=0;i<4;i++)if(current[i]==answer[i]){hit++;usedA[i]=usedG[i]=true;}for(int i=0;i<4;i++)if(!usedG[i])for(int j=0;j<4;j++)if(!usedA[j]&&current[i]==answer[j]){blow++;usedA[j]=true;break;}guesses.add(current.clone());results.add(new int[]{hit,blow});animatedRow=guesses.size()-1;pinT=0;Arrays.fill(current,-1);selected=-1;tones.startTone(ToneGenerator.TONE_PROP_ACK,90);ValueAnimator pins=ValueAnimator.ofFloat(0,1);pins.setDuration(620);pins.setInterpolator(new OvershootInterpolator(.45f));pins.addUpdateListener(v->pinT=(float)v.getAnimatedValue());animate(pins);if(hit==4){ended=true;victory=true;message="4ヒット！ 正解！";reveal();performHapticFeedback(HapticFeedbackConstants.CONFIRM);}else if(guesses.size()==8){ended=true;message="8ターン終了";reveal();}else message=hit+"ヒット  "+blow+"ブロー";}
-        void reveal(){ValueAnimator a=ValueAnimator.ofFloat(0,1);a.setStartDelay(420);a.setDuration(650);a.setInterpolator(new DecelerateInterpolator());a.addUpdateListener(v->{revealT=(float)v.getAnimatedValue();celebrateT=victory?revealT:0;});animate(a);if(victory)tones.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD,300);}
-        @Override protected void onDetachedFromWindow(){tones.release();super.onDetachedFromWindow();}
-        @Override public boolean onTouchEvent(MotionEvent e){if(e.getAction()!=MotionEvent.ACTION_UP)return true;float x=e.getX(),y=e.getY();for(int i=0;i<palette.size();i++)if(palette.get(i).contains(x,y)){choose(i);invalidate();return true;}if(back.contains(x,y)){undo();invalidate();return true;}if(ok.contains(x,y)){judge();invalidate();return true;}if(reset.contains(x,y)){newGame();return true;}if(duplicate.contains(x,y)){answerDuplicates=!answerDuplicates;newGame();return true;}return true;}
-    }
+ class Game extends View {
+  final int[] C={0xff2459df,0xffed3838,0xff25bd43,0xffffd21d,0xffe85ccf,0xffe9eeeb};
+  final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG); final Path path=new Path();
+  final ArrayList<int[]> tries=new ArrayList<>(), marks=new ArrayList<>(); final int[] now={-1,-1,-1,-1};
+  final ArrayList<RectF> palette=new ArrayList<>(); final RectF ok=new RectF(),undo=new RectF(),restart=new RectF(),dup=new RectF();
+  final ToneGenerator tone=new ToneGenerator(AudioManager.STREAM_MUSIC,35); int[] answer=new int[4];
+  boolean duplicates=false,ended=false,win=false; int movingColor=-1,movingSlot=-1,markColumn=-1;
+  float putT=1,pinT=1,lidT=0,partyT=0; float palY,colX,colW,slotY0,slotDy;
+  Game(){super(MainActivity.this);setLayerType(LAYER_TYPE_SOFTWARE,null);newGame();}
+  void newGame(){tries.clear();marks.clear();Arrays.fill(now,-1);ended=win=false;putT=pinT=1;lidT=partyT=0;ArrayList<Integer>b=new ArrayList<>();for(int i=0;i<6;i++)b.add(i);Collections.shuffle(b);Random r=new Random();for(int i=0;i<4;i++)answer[i]=duplicates?r.nextInt(6):b.get(i);invalidate();}
+  int filled(){int n=0;for(int v:now)if(v>=0)n++;return n;}
+  void rect(Canvas c,RectF r,float rad,int color){p.setShader(null);p.setStyle(Paint.Style.FILL);p.setColor(color);p.clearShadowLayer();c.drawRoundRect(r,rad,rad,p);}
+  void text(Canvas c,String s,float x,float y,float z,int color,Paint.Align a){p.setShader(null);p.setStyle(Paint.Style.FILL);p.clearShadowLayer();p.setTypeface(Typeface.create("sans",Typeface.BOLD));p.setTextAlign(a);p.setTextSize(z);p.setColor(color);c.drawText(s,x,y,p);}
+  int mix(int a,int b,float t){return Color.rgb((int)(Color.red(a)*(1-t)+Color.red(b)*t),(int)(Color.green(a)*(1-t)+Color.green(b)*t),(int)(Color.blue(a)*(1-t)+Color.blue(b)*t));}
+  void metal(Canvas c,RectF r,float rad){p.setShader(new LinearGradient(r.left,r.top,r.right,r.bottom,new int[]{0xffcbd2d2,0xff707a7a,0xffaeb6b5,0xff555e5e},null,Shader.TileMode.CLAMP));p.setStyle(Paint.Style.FILL);p.setShadowLayer(8,0,4,0x88000000);c.drawRoundRect(r,rad,rad,p);p.clearShadowLayer();p.setShader(null);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(Math.max(2,r.width()*.025f));p.setColor(0x99eef4f2);c.drawRoundRect(new RectF(r.left+3,r.top+3,r.right-3,r.bottom-3),rad,rad,p);}
+  void hole(Canvas c,float x,float y,float r){p.setShader(new RadialGradient(x-r*.2f,y-r*.2f,r,new int[]{0xff171411,0xff3d3a36,0xff858b88},null,Shader.TileMode.CLAMP));p.setStyle(Paint.Style.FILL);p.setShadowLayer(r*.22f,0,r*.15f,0xaa000000);c.drawCircle(x,y,r,p);p.clearShadowLayer();p.setShader(null);}
+  void marble(Canvas c,float x,float y,float r,int idx){int base=C[idx];p.setShader(new RadialGradient(x-r*.35f,y-r*.42f,r*1.35f,new int[]{mix(base,Color.WHITE,.52f),base,mix(base,Color.BLACK,.48f)},new float[]{0,.45f,1},Shader.TileMode.CLAMP));p.setStyle(Paint.Style.FILL);p.setShadowLayer(r*.25f,0,r*.22f,0x99000000);c.drawCircle(x,y,r,p);p.clearShadowLayer();p.setShader(null);c.save();path.reset();path.addCircle(x,y,r*.88f,Path.Direction.CW);c.clipPath(path);p.setStyle(Paint.Style.STROKE);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeWidth(r*.22f);p.setColor(0xaaffffff);
+   if(idx==0){c.drawLine(x-r,y,x+r,y,p);c.drawLine(x,y-r,x,y+r,p);}
+   else if(idx==1){p.setStyle(Paint.Style.FILL);float q=r*.62f;for(int a=-2;a<2;a++)for(int b=-2;b<2;b++)if((a+b)%2==0)c.drawRect(x+a*q,y+b*q,x+(a+1)*q,y+(b+1)*q,p);}
+   else if(idx==2){for(int k=-1;k<=1;k++){path.reset();path.moveTo(x-r*1.2f,y+k*r*.75f);path.cubicTo(x-r*.55f,y+(k-.8f)*r*.75f,x+r*.15f,y+(k+.8f)*r*.75f,x+r*1.2f,y+k*r*.75f);c.drawPath(path,p);}}
+   else if(idx==3){p.setStyle(Paint.Style.FILL);for(int a=-2;a<2;a++)for(int b=-2;b<2;b++){path.reset();path.moveTo(x+a*r*.75f,y+b*r*.75f-r*.28f);path.lineTo(x+a*r*.75f+r*.28f,y+b*r*.75f);path.lineTo(x+a*r*.75f,y+b*r*.75f+r*.28f);path.lineTo(x+a*r*.75f-r*.28f,y+b*r*.75f);path.close();c.drawPath(path,p);}}
+   else if(idx==4){for(int k=-2;k<=2;k++)c.drawLine(x-r*1.5f+k*r*.62f,y+r,x+r*.5f+k*r*.62f,y-r,p);}
+   else {for(int k=-2;k<=2;k++)c.drawLine(x-r,y+k*r*.5f,x+r,y+k*r*.5f,p);}c.restore();p.setStyle(Paint.Style.FILL);p.setColor(0xaaffffff);c.drawOval(new RectF(x-r*.48f,y-r*.56f,x-r*.12f,y-r*.22f),p);
+  }
+  void avatar(Canvas c,float x,float y,float r,int n){p.setColor(n%2==0?0xffb52b21:0xff665281);p.setStyle(Paint.Style.FILL);c.drawCircle(x,y,r,p);p.setColor(0xffe6d2ba);c.drawCircle(x,y+r*.05f,r*.62f,p);p.setColor(n%2==0?0xff63351f:0xff252020);c.drawArc(new RectF(x-r*.62f,y-r*.62f,x+r*.62f,y+r*.36f),180,180,true,p);p.setColor(0xff292522);c.drawCircle(x-r*.2f,y+r*.05f,r*.055f,p);c.drawCircle(x+r*.2f,y+r*.05f,r*.055f,p);}
+  @Override protected void onDraw(Canvas c){float w=getWidth(),h=getHeight();
+   p.setShader(new LinearGradient(0,0,0,h,new int[]{0xffb97c34,0xffd19d50,0xff9e6429},null,Shader.TileMode.CLAMP));c.drawRect(0,0,w,h,p);p.setShader(null);p.setColor(0x22522c10);for(int i=0;i<24;i++)c.drawOval(new RectF((i*149)%w-100,(i*67)%h,(i*149)%w+260,(i*67)%h+5),p);
+   float m=w*.035f,top=h*.07f; text(c,"●  ヒット：色と場所が正解",w*.29f,top,h*.034f,Color.WHITE,Paint.Align.CENTER);text(c,"○  ブロー：色だけ正解",w*.61f,top,h*.034f,Color.WHITE,Paint.Align.CENTER);
+   RectF board=new RectF(m,h*.105f,w-m,h*.91f);rect(c,board,h*.035f,0xff4d5756);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(h*.012f);p.setColor(0xffd9e0df);c.drawRoundRect(board,h*.035f,h*.035f,p);
+   float left=w*.115f,right=w*.82f;colW=(right-left)/8f;slotY0=h*.40f;slotDy=h*.135f;
+   for(int col=0;col<8;col++){float cx=left+colW*(col+.5f);if(col<7){p.setColor(0xffadb5b3);p.setStyle(Paint.Style.FILL);path.reset();path.moveTo(cx+colW*.38f,h*.178f);path.lineTo(cx+colW*.55f,h*.155f);path.lineTo(cx+colW*.55f,h*.201f);path.close();c.drawPath(path,p);}avatar(c,cx,h*.157f,h*.036f,col);
+    RectF pegBox=new RectF(cx-colW*.28f,h*.215f,cx+colW*.28f,h*.32f);rect(c,pegBox,h*.012f,0xff626d6c);for(int i=0;i<4;i++)hole(c,cx+(i%2-.5f)*colW*.25f,h*.247f+(i/2)*h*.042f,h*.012f);
+    RectF tray=new RectF(cx-colW*.34f,h*.34f,cx+colW*.34f,h*.845f);metal(c,tray,h*.025f);if(col==tries.size()&&!ended){p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(h*.007f);p.setColor(0xffff42c5);c.drawRoundRect(new RectF(tray.left-3,tray.top-3,tray.right+3,tray.bottom+3),h*.026f,h*.026f,p);}int[] vals=col<tries.size()?tries.get(col):(col==tries.size()?now:null);
+    for(int s=0;s<4;s++){float y=slotY0+s*slotDy;hole(c,cx,y,h*.03f);if(vals!=null&&vals[s]>=0&&!(col==tries.size()&&s==movingSlot&&putT<1))marble(c,cx,y,h*.033f,vals[s]);}
+    if(col<marks.size()){int hit=marks.get(col)[0],blow=marks.get(col)[1],n=0,show=col==markColumn?(int)(pinT*4.01f):4;for(int k=0;k<hit;k++,n++)if(n<show)marble(c,cx+(n%2-.5f)*colW*.25f,h*.247f+(n/2)*h*.042f,h*.012f,1);for(int k=0;k<blow;k++,n++)if(n<show)marble(c,cx+(n%2-.5f)*colW*.25f,h*.247f+(n/2)*h*.042f,h*.012f,5);}
+   }
+   colX=left+colW*(tries.size()+.5f);
+   float ax=w*.90f;RectF answerCase=new RectF(ax-colW*.38f,h*.33f,ax+colW*.38f,h*.85f);metal(c,answerCase,h*.018f);for(int i=0;i<4;i++){hole(c,ax,slotY0+i*slotDy,h*.03f);marble(c,ax,slotY0+i*slotDy,h*.033f,answer[i]);}RectF lid=new RectF(answerCase.left-2+lidT*colW*.9f,answerCase.top-5,answerCase.right+2+lidT*colW*.9f,answerCase.bottom+5);rect(c,lid,h*.018f,0xff828b89);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(3);p.setColor(0xffdce2e0);c.drawRoundRect(lid,h*.018f,h*.018f,p);
+   palY=h*.885f;RectF rack=new RectF(w*.27f,h*.83f,w*.76f,h*.94f);metal(c,rack,h*.035f);palette.clear();for(int i=0;i<6;i++){float x=w*.34f+i*w*.071f;RectF r=new RectF(x-h*.045f,palY-h*.045f,x+h*.045f,palY+h*.045f);palette.add(r);hole(c,x,palY,h*.038f);marble(c,x,palY,h*.041f,i);}
+   undo.set(w*.79f,h*.86f,w*.86f,h*.925f);ok.set(w*.87f,h*.86f,w*.955f,h*.925f);rect(c,undo,h*.02f,0xff747e7c);rect(c,ok,h*.02f,filled()==4||ended?0xffff8b25:0xff7c8583);text(c,"↶",undo.centerX(),undo.centerY()+h*.012f,h*.036f,Color.WHITE,Paint.Align.CENTER);text(c,ended?"NEW":"OK",ok.centerX(),ok.centerY()+h*.009f,h*.026f,Color.WHITE,Paint.Align.CENTER);
+   restart.set(w*.91f,h*.12f,w*.965f,h*.18f);dup.set(w*.845f,h*.12f,w*.90f,h*.18f);rect(c,restart,h*.018f,0xff6d7775);rect(c,dup,h*.018f,duplicates?0xffff5fc8:0xff6d7775);text(c,"↻",restart.centerX(),restart.centerY()+h*.01f,h*.027f,Color.WHITE,Paint.Align.CENTER);text(c,"×2",dup.centerX(),dup.centerY()+h*.009f,h*.021f,Color.WHITE,Paint.Align.CENTER);
+   if(putT<1&&movingColor>=0){float sx=palette.get(movingColor).centerX(),ex=colX,ey=slotY0+movingSlot*slotDy,t=putT,x=sx+(ex-sx)*t,y=palY+(ey-palY)*t-(float)Math.sin(Math.PI*t)*h*.11f;marble(c,x,y,h*.041f,movingColor);}
+   if(win&&partyT>0)for(int i=0;i<30;i++){float x=(i*83)%w,y=((i*.173f+partyT)%1)*h;p.setColor(C[i%6]);p.setStyle(Paint.Style.FILL);c.save();c.rotate(i*29+partyT*360,x,y);c.drawRect(x-4,y-8,x+4,y+8,p);c.restore();}
+  }
+  void anim(ValueAnimator a){a.addUpdateListener(v->invalidate());a.start();}
+  void choose(int color){if(ended||filled()==4)return;int s=filled();now[s]=color;movingColor=color;movingSlot=s;putT=0;tone.startTone(ToneGenerator.TONE_PROP_BEEP,35);ValueAnimator a=ValueAnimator.ofFloat(0,1);a.setDuration(330);a.setInterpolator(new OvershootInterpolator(.55f));a.addUpdateListener(v->putT=(float)v.getAnimatedValue());anim(a);performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);}
+  void judge(){if(ended){newGame();return;}if(filled()<4)return;boolean[]ua=new boolean[4],ug=new boolean[4];int hit=0,blow=0;for(int i=0;i<4;i++)if(now[i]==answer[i]){hit++;ua[i]=ug[i]=true;}for(int i=0;i<4;i++)if(!ug[i])for(int j=0;j<4;j++)if(!ua[j]&&now[i]==answer[j]){blow++;ua[j]=true;break;}tries.add(now.clone());marks.add(new int[]{hit,blow});Arrays.fill(now,-1);markColumn=tries.size()-1;pinT=0;tone.startTone(ToneGenerator.TONE_PROP_ACK,90);ValueAnimator pins=ValueAnimator.ofFloat(0,1);pins.setDuration(650);pins.setInterpolator(new OvershootInterpolator(.35f));pins.addUpdateListener(v->pinT=(float)v.getAnimatedValue());anim(pins);if(hit==4||tries.size()==8){ended=true;win=hit==4;ValueAnimator lid=ValueAnimator.ofFloat(0,1);lid.setStartDelay(450);lid.setDuration(700);lid.setInterpolator(new DecelerateInterpolator());lid.addUpdateListener(v->{lidT=(float)v.getAnimatedValue();partyT=win?lidT:0;});anim(lid);if(win)tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD,320);}}
+  @Override public boolean onTouchEvent(MotionEvent e){if(e.getAction()!=MotionEvent.ACTION_UP)return true;float x=e.getX(),y=e.getY();for(int i=0;i<palette.size();i++)if(palette.get(i).contains(x,y)){choose(i);invalidate();return true;}if(undo.contains(x,y)){int n=filled();if(n>0)now[n-1]=-1;invalidate();}else if(ok.contains(x,y)){judge();invalidate();}else if(restart.contains(x,y))newGame();else if(dup.contains(x,y)){duplicates=!duplicates;newGame();}return true;}
+  @Override protected void onDetachedFromWindow(){tone.release();super.onDetachedFromWindow();}
+ }
 }
