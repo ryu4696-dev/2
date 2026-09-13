@@ -29,6 +29,8 @@ jobs:
           gradle-version: '8.9'
       - name: Test multiplayer shared-board state machine
         run: python3 scripts/test_multiplayer_sync.py
+      - name: Test live Firebase two-player synchronization
+        run: python3 scripts/test_firebase_live.py
       - name: Apply v17 multiplayer sync patch
         run: python3 scripts/v17_sync_patch.py
       - run: gradle assembleRelease
