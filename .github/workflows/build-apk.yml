@@ -27,6 +27,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Test multiplayer shared-board state machine
+        run: python3 scripts/test_multiplayer_sync.py
       - name: Apply v17 multiplayer sync patch
         run: python3 scripts/v17_sync_patch.py
       - run: gradle assembleRelease
