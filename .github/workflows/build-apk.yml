@@ -5,6 +5,9 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,3 +26,14 @@ jobs:
         with:
           name: HitAndBlow-APK
           path: app/build/outputs/apk/release/app-release.apk
+      - name: Publish stable h.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/h.apk" --jq .sha)
+          CONTENT=$(base64 -w0 app/build/outputs/apk/release/app-release.apk)
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/h.apk" \
+            -f message="Publish latest HitAndBlow APK" \
+            -f content="$CONTENT" \
+            -f sha="$SHA" \
+            -f branch="${GITHUB_REF_NAME}"
