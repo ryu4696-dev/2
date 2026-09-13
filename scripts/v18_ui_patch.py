@@ -90,4 +90,12 @@ new_touch = '''   if(homeBtn.contains(x,y)){
 must_replace(old_touch, new_touch)
 
 p.write_text(s, encoding='utf-8')
+
+# Build this UI revision as v18 without requiring a separate source commit.
+g = Path('app/build.gradle.kts')
+gs = g.read_text(encoding='utf-8')
+gs = gs.replace('versionCode = 17', 'versionCode = 18')
+gs = gs.replace('versionName = "17.0"', 'versionName = "18.0"')
+g.write_text(gs, encoding='utf-8')
+
 print('Applied v18 home/menu UI patch')
