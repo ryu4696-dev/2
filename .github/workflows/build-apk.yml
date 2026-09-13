@@ -34,8 +34,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          export APK_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/h.apk" --jq .sha)
-          python3 - <<'PY'
+          NEW_SHA=$(git hash-object app/build/outputs/apk/release/app-release.apk)
+          for ATTEMPT in 1 2 3; do
+            export APK_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/h.apk" --jq .sha)
+            if [ "$NEW_SHA" = "$APK_SHA" ]; then
+              echo "h.apk is already current"
+              exit 0
+            fi
+            python3 - <<'PY'
           import base64, json, os
           from pathlib import Path
           apk = Path("app/build/outputs/apk/release/app-release.apk").read_bytes()
@@ -47,4 +53,9 @@ jobs:
           }
           Path("payload.json").write_text(json.dumps(payload), encoding="utf-8")
           PY
-          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/h.apk" --input payload.json
+            if gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/h.apk" --input payload.json; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
