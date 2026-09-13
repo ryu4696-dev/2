@@ -30,10 +30,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/h.apk" --jq .sha)
-          CONTENT=$(base64 -w0 app/build/outputs/apk/release/app-release.apk)
-          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/h.apk" \
-            -f message="Publish latest HitAndBlow APK" \
-            -f content="$CONTENT" \
-            -f sha="$SHA" \
-            -f branch="${GITHUB_REF_NAME}"
+          export APK_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/h.apk" --jq .sha)
+          python3 - <<'PY'
+          import base64, json, os
+          from pathlib import Path
+          apk = Path("app/build/outputs/apk/release/app-release.apk").read_bytes()
+          payload = {
+              "message": "Publish latest HitAndBlow APK",
+              "content": base64.b64encode(apk).decode("ascii"),
+              "sha": os.environ["APK_SHA"],
+              "branch": os.environ["GITHUB_REF_NAME"],
+          }
+          Path("payload.json").write_text(json.dumps(payload), encoding="utf-8")
+          PY
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/h.apk" --input payload.json
