@@ -33,8 +33,10 @@ jobs:
         run: python3 scripts/test_firebase_live.py
       - name: Apply multiplayer sync patch
         run: python3 scripts/v17_sync_patch.py
-      - name: Apply v18 home and icon UI patch
-        run: python3 scripts/v18_ui_patch.py
+      - name: Apply v19 opaque home UI patch
+        run: python3 scripts/v19_ui_patch.py
+      - name: Install v19 rendered app icon
+        run: python3 scripts/v19_icon_asset.py
       - run: gradle assembleRelease
       - uses: actions/upload-artifact@v4
         with:
