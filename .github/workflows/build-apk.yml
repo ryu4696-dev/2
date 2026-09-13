@@ -31,8 +31,10 @@ jobs:
         run: python3 scripts/test_multiplayer_sync.py
       - name: Test live Firebase two-player synchronization
         run: python3 scripts/test_firebase_live.py
-      - name: Apply v17 multiplayer sync patch
+      - name: Apply multiplayer sync patch
         run: python3 scripts/v17_sync_patch.py
+      - name: Apply v18 home and icon UI patch
+        run: python3 scripts/v18_ui_patch.py
       - run: gradle assembleRelease
       - uses: actions/upload-artifact@v4
         with:
