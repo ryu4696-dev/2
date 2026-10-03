@@ -1,15 +1,18 @@
-plugins { id("com.android.application") }
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
 
 android {
-    namespace = "dev.ryu4696.hitandblow"
+    namespace = "dev.ryu4696.stampmanager"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "dev.ryu4696.hitandblow"
+        applicationId = "dev.ryu4696.stampmanager"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "17.0"
+        versionCode = 1
+        versionName = "1.0"
     }
 
     buildTypes {
