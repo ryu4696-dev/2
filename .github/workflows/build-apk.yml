@@ -23,6 +23,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Restore stable signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: stamp-manager-debug-keystore-v1
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
