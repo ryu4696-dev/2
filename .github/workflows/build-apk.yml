@@ -1,17 +1,17 @@
-name: Build Android APK
+name: Build Stamp Manager APK
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ stamp-manager ]
     paths-ignore:
-      - 'h.apk'
+      - 'StampManager.apk'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-apk-${{ github.ref }}
+  group: stamp-manager-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -27,47 +27,29 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Test multiplayer shared-board state machine
-        run: python3 scripts/test_multiplayer_sync.py
-      - name: Test live Firebase two-player synchronization
-        run: python3 scripts/test_firebase_live.py
-      - name: Apply multiplayer sync patch
-        run: python3 scripts/v17_sync_patch.py
-      - name: Apply v19 opaque home UI patch
-        run: python3 scripts/v19_ui_patch.py
-      - name: Install v19 rendered app icon
-        run: python3 scripts/v19_icon_asset.py
-      - run: gradle assembleRelease
+      - name: Build release APK
+        run: gradle assembleRelease
       - uses: actions/upload-artifact@v4
         with:
-          name: HitAndBlow-APK
+          name: StampManager-APK
           path: app/build/outputs/apk/release/app-release.apk
-      - name: Publish stable h.apk
+      - name: Publish stable APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NEW_SHA=$(git hash-object app/build/outputs/apk/release/app-release.apk)
-          for ATTEMPT in 1 2 3; do
-            export APK_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/h.apk" --jq .sha)
-            if [ "$NEW_SHA" = "$APK_SHA" ]; then
-              echo "h.apk is already current"
-              exit 0
-            fi
-            python3 - <<'PY'
+          export APK_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/contents/StampManager.apk?ref=${GITHUB_REF_NAME}" --jq .sha 2>/dev/null || true)"
+          python3 - <<'PY'
           import base64, json, os
           from pathlib import Path
           apk = Path("app/build/outputs/apk/release/app-release.apk").read_bytes()
           payload = {
-              "message": "Publish latest HitAndBlow APK",
+              "message": "Publish Stamp Manager APK",
               "content": base64.b64encode(apk).decode("ascii"),
-              "sha": os.environ["APK_SHA"],
               "branch": os.environ["GITHUB_REF_NAME"],
           }
+          sha = os.environ.get("APK_SHA", "").strip()
+          if sha:
+              payload["sha"] = sha
           Path("payload.json").write_text(json.dumps(payload), encoding="utf-8")
           PY
-            if gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/h.apk" --input payload.json; then
-              exit 0
-            fi
-            sleep 2
-          done
-          exit 1
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/StampManager.apk" --input payload.json
