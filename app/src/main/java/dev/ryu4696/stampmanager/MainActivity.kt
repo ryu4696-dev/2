@@ -71,7 +71,12 @@ class MainActivity : Activity() {
     }
 
     private fun loadStamps(): List<Stamp> {
-        val encoded = intArrayOf(R.raw.stamp0, R.raw.stamp1, R.raw.stamp2, R.raw.stamp3, R.raw.stamp4, R.raw.stamp5, R.raw.stamp6, R.raw.stamp7, R.raw.stamp8).joinToString("") { id ->\n            resources.openRawResource(id).bufferedReader(Charsets.US_ASCII).use { it.readText() }\n        }
+        val encoded = intArrayOf(
+            R.raw.stamp0, R.raw.stamp1, R.raw.stamp2, R.raw.stamp3, R.raw.stamp4,
+            R.raw.stamp5, R.raw.stamp6, R.raw.stamp7, R.raw.stamp8
+        ).joinToString("") { id ->
+            resources.openRawResource(id).bufferedReader(Charsets.US_ASCII).use { it.readText() }
+        }
         val packed = Base64.decode(encoded, Base64.DEFAULT)
         val text = GZIPInputStream(ByteArrayInputStream(packed)).bufferedReader(Charsets.UTF_8).use { it.readText() }
         val root = JSONArray(text)
