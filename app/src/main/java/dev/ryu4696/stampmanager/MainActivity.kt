@@ -20,10 +20,18 @@ import android.widget.TextView
 import org.json.JSONArray
 import java.io.ByteArrayInputStream
 import java.text.Normalizer
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.zip.CRC32
 import java.util.zip.GZIPInputStream
 
-data class Usage(val company: String, val product: String, val location: String)
+data class Usage(
+    val company: String,
+    val product: String,
+    val location: String,
+    val lastDelivery: String
+)
 data class Stamp(val number: String, val usages: List<Usage>)
 
 class MainActivity : Activity() {
@@ -39,6 +47,35 @@ class MainActivity : Activity() {
     private var starOnly = false
     private val prefs by lazy { getSharedPreferences("stamp_marks", MODE_PRIVATE) }
 
+    private data class DateMaps(
+        val common: Map<Int, String>,
+        val overrides: Map<Int, String>
+    )
+
+    private data class StampSortParts(
+        val type: Int,
+        val zoneNumber: Int,
+        val zoneText: String,
+        val position: String,
+        val suffix: String,
+        val normalized: String
+    )
+
+    private val positionOrder = mapOf(
+        "上" to 10, "上前" to 11,
+        "中" to 20, "中前" to 21,
+        "下" to 30, "下前" to 31, "下前後" to 32,
+        "前上" to 40, "前中" to 41, "前下" to 42,
+        "左上" to 50, "左上前" to 51, "左中" to 52, "左前" to 53, "左" to 54,
+        "右上" to 60, "右上前" to 61, "右中" to 62, "右前" to 63, "右" to 64,
+        "中左" to 70, "中右" to 71, "上右" to 72
+    )
+
+    private val numericOnlyRegex = Regex("^\\d+$")
+    private val numericRackRegex = Regex("^(\\d+)(\\D+?)(\\d+)(.*)$")
+    private val alphaRackRegex = Regex("^([A-Za-z]+)(\\D*?)(\\d+)(.*)$")
+    private val naturalTokenRegex = Regex("\\d+|\\D+")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -49,7 +86,7 @@ class MainActivity : Activity() {
         starButton = findViewById(R.id.starButton)
         listView = findViewById(R.id.listView)
 
-        allStamps += loadStamps()
+        allStamps += loadStamps().sortedWith(Comparator { a, b -> compareStampNumbers(a.number, b.number) })
         adapter = StampAdapter()
         listView.adapter = adapter
 
@@ -71,6 +108,7 @@ class MainActivity : Activity() {
     }
 
     private fun loadStamps(): List<Stamp> {
+        val dateMaps = loadDateMaps()
         val encoded = intArrayOf(
             R.raw.stamp0, R.raw.stamp1, R.raw.stamp2, R.raw.stamp3, R.raw.stamp4,
             R.raw.stamp5, R.raw.stamp6, R.raw.stamp7, R.raw.stamp8
@@ -81,21 +119,95 @@ class MainActivity : Activity() {
         val text = GZIPInputStream(ByteArrayInputStream(packed)).bufferedReader(Charsets.UTF_8).use { it.readText() }
         val root = JSONArray(text)
         val result = ArrayList<Stamp>(root.length())
+
         for (i in 0 until root.length()) {
             val obj = root.getJSONObject(i)
+            val stampNumber = obj.getString("s")
             val usagesJson = obj.getJSONArray("u")
             val usages = ArrayList<Usage>(usagesJson.length())
+
             for (j in 0 until usagesJson.length()) {
                 val u = usagesJson.getJSONObject(j)
+                val company = u.optString("c")
+                val product = u.optString("p")
+                val location = u.optString("l")
+
+                val commonDate = dateMaps.common[hash23("$company\u0000$product")] ?: continue
+                val overrideDate = dateMaps.overrides[
+                    hash23("$stampNumber\u0000$company\u0000$product\u0000$location")
+                ]
+
                 usages += Usage(
-                    company = u.optString("c"),
-                    product = u.optString("p"),
-                    location = u.optString("l")
+                    company = company,
+                    product = product,
+                    location = location,
+                    lastDelivery = overrideDate ?: commonDate
                 )
             }
-            result += Stamp(obj.getString("s"), usages)
+
+            if (usages.isNotEmpty()) {
+                usages.sortWith(
+                    compareByDescending<Usage> { it.lastDelivery }
+                        .thenBy { normalize(it.company) }
+                        .thenBy { normalize(it.product) }
+                        .thenBy { normalize(it.location) }
+                )
+                result += Stamp(stampNumber, usages)
+            }
         }
         return result
+    }
+
+    private fun loadDateMaps(): DateMaps {
+        val encoded = intArrayOf(
+            R.raw.date0, R.raw.date1, R.raw.date2, R.raw.date3
+        ).joinToString("") { id ->
+            resources.openRawResource(id).bufferedReader(Charsets.US_ASCII).use { it.readText() }
+        }
+        val packed = Base64.decode(encoded, Base64.DEFAULT)
+        val bytes = GZIPInputStream(ByteArrayInputStream(packed)).use { it.readBytes() }
+        var position = 0
+
+        fun readU16(): Int {
+            val value = ((bytes[position].toInt() and 0xFF) shl 8) or
+                (bytes[position + 1].toInt() and 0xFF)
+            position += 2
+            return value
+        }
+
+        fun readHash23(): Int {
+            val value = ((bytes[position].toInt() and 0x7F) shl 16) or
+                ((bytes[position + 1].toInt() and 0xFF) shl 8) or
+                (bytes[position + 2].toInt() and 0xFF)
+            position += 3
+            return value
+        }
+
+        val commonCount = readU16()
+        val overrideCount = readU16()
+        val baseDate = LocalDate.of(2020, 1, 1)
+        val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.JAPAN)
+
+        fun readMap(count: Int): HashMap<Int, String> {
+            val map = HashMap<Int, String>(count * 2)
+            repeat(count) {
+                val key = readHash23()
+                val offset = readU16()
+                map[key] = baseDate.plusDays((offset - 1).toLong()).format(formatter)
+            }
+            return map
+        }
+
+        return DateMaps(
+            common = readMap(commonCount),
+            overrides = readMap(overrideCount)
+        )
+    }
+
+    private fun hash23(value: String): Int {
+        val crc = CRC32()
+        crc.update(value.toByteArray(Charsets.UTF_8))
+        return (crc.value and 0x7FFFFF).toInt()
     }
 
     private fun isStarred(number: String): Boolean = prefs.getBoolean(number, false)
@@ -110,6 +222,106 @@ class MainActivity : Activity() {
         .replace(" ", "")
         .replace("　", "")
 
+    private fun sortNormalize(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFKC)
+        .replace(" ", "")
+        .replace("　", "")
+
+    private fun stampSortParts(value: String): StampSortParts {
+        val valueNormalized = sortNormalize(value)
+
+        if (numericOnlyRegex.matches(valueNormalized)) {
+            return StampSortParts(
+                type = 0,
+                zoneNumber = valueNormalized.toIntOrNull() ?: Int.MAX_VALUE,
+                zoneText = "",
+                position = "",
+                suffix = valueNormalized,
+                normalized = valueNormalized
+            )
+        }
+
+        numericRackRegex.matchEntire(valueNormalized)?.let { match ->
+            val zone = match.groupValues[1]
+            val rackPosition = match.groupValues[2]
+            val serial = match.groupValues[3]
+            val rest = match.groupValues[4]
+            return StampSortParts(
+                type = 1,
+                zoneNumber = zone.toIntOrNull() ?: Int.MAX_VALUE,
+                zoneText = "",
+                position = rackPosition,
+                suffix = serial + rest,
+                normalized = valueNormalized
+            )
+        }
+
+        alphaRackRegex.matchEntire(valueNormalized)?.let { match ->
+            val zone = match.groupValues[1].uppercase(Locale.JAPAN)
+            val rackPosition = match.groupValues[2]
+            val serial = match.groupValues[3]
+            val rest = match.groupValues[4]
+            return StampSortParts(
+                type = 2,
+                zoneNumber = 0,
+                zoneText = zone,
+                position = rackPosition,
+                suffix = serial + rest,
+                normalized = valueNormalized
+            )
+        }
+
+        return StampSortParts(
+            type = 3,
+            zoneNumber = 0,
+            zoneText = valueNormalized,
+            position = "",
+            suffix = "",
+            normalized = valueNormalized
+        )
+    }
+
+    private fun compareNatural(a: String, b: String): Int {
+        if (a == b) return 0
+        val left = naturalTokenRegex.findAll(a).map { it.value }.toList()
+        val right = naturalTokenRegex.findAll(b).map { it.value }.toList()
+        val common = minOf(left.size, right.size)
+
+        for (i in 0 until common) {
+            val l = left[i]
+            val r = right[i]
+            val ln = l.toLongOrNull()
+            val rn = r.toLongOrNull()
+            val compared = if (ln != null && rn != null) {
+                val numberCompared = ln.compareTo(rn)
+                if (numberCompared != 0) numberCompared else l.length.compareTo(r.length)
+            } else {
+                l.compareTo(r)
+            }
+            if (compared != 0) return compared
+        }
+        return left.size.compareTo(right.size)
+    }
+
+    private fun compareStampNumbers(a: String, b: String): Int {
+        val left = stampSortParts(a)
+        val right = stampSortParts(b)
+
+        left.type.compareTo(right.type).takeIf { it != 0 }?.let { return it }
+
+        when (left.type) {
+            0, 1 -> left.zoneNumber.compareTo(right.zoneNumber).takeIf { it != 0 }?.let { return it }
+            2, 3 -> compareNatural(left.zoneText, right.zoneText).takeIf { it != 0 }?.let { return it }
+        }
+
+        val leftPositionRank = positionOrder[left.position] ?: 100
+        val rightPositionRank = positionOrder[right.position] ?: 100
+        leftPositionRank.compareTo(rightPositionRank).takeIf { it != 0 }?.let { return it }
+        compareNatural(left.position, right.position).takeIf { it != 0 }?.let { return it }
+        compareNatural(left.suffix, right.suffix).takeIf { it != 0 }?.let { return it }
+        compareNatural(left.normalized, right.normalized).takeIf { it != 0 }?.let { return it }
+        return a.compareTo(b)
+    }
+
     private fun applyFilter() {
         val q = normalize(searchBox.text?.toString().orEmpty())
         shownStamps.clear()
@@ -121,7 +333,8 @@ class MainActivity : Activity() {
                     hit = stamp.usages.any {
                         normalize(it.company).contains(q) ||
                             normalize(it.product).contains(q) ||
-                            normalize(it.location).contains(q)
+                            normalize(it.location).contains(q) ||
+                            normalize(it.lastDelivery).contains(q)
                     }
                 }
                 if (!hit) continue
@@ -250,6 +463,7 @@ class MainActivity : Activity() {
             val lines = mutableListOf<String>()
             lines += "企業  ${u.company.ifBlank { "（未登録）" }}"
             lines += "商品  ${u.product.ifBlank { "（未登録）" }}"
+            lines += "最終納品日  ${u.lastDelivery.ifBlank { "（未登録）" }}"
             if (u.location.isNotBlank()) lines += "場所  ${u.location}"
             return lines.joinToString("\n")
         }
