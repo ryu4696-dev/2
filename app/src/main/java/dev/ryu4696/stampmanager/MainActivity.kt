@@ -125,7 +125,7 @@ class MainActivity : Activity() {
         }
         if (::adapter.isInitialized) adapter.notifyDataSetChanged()
         val starCount = allStamps.count { isStarred(it.number) }
-        val prefix = if (shownStamps.size == allStamps.size && !starOnly && q.isEmpty()) "\${allStamps.size} 印判" else "\${shownStamps.size} / \${allStamps.size} 印判"
+        val prefix = if (shownStamps.size == allStamps.size && !starOnly && q.isEmpty()) "${allStamps.size} 印判" else "${shownStamps.size} / ${allStamps.size} 印判"
         countText.text = "$prefix  ・  ★ $starCount"
         setFilterButtonState()
     }
@@ -217,7 +217,7 @@ class MainActivity : Activity() {
             val isExpanded = expanded.contains(stamp.number)
             val isMarked = isStarred(stamp.number)
             holder.number.text = stamp.number
-            holder.count.text = "\${stamp.usages.size}件"
+            holder.count.text = "${stamp.usages.size}件"
             holder.star.text = if (isMarked) "★" else "☆"
             holder.star.setTextColor(if (isMarked) Color.parseColor("#F2B53C") else Color.parseColor("#989EAD"))
             holder.star.contentDescription = if (isMarked) "マークを外す" else "マークする"
@@ -227,7 +227,7 @@ class MainActivity : Activity() {
             holder.more.text = when {
                 stamp.usages.size <= 2 -> ""
                 isExpanded -> "▲ 閉じる"
-                else -> "▼ 他 \${stamp.usages.size - 2}件を表示"
+                else -> "▼ 他 ${stamp.usages.size - 2}件を表示"
             }
             holder.more.visibility = if (stamp.usages.size <= 2) View.GONE else View.VISIBLE
 
@@ -243,9 +243,9 @@ class MainActivity : Activity() {
 
         private fun usageText(u: Usage): String {
             val lines = mutableListOf<String>()
-            lines += "企業  \${u.company.ifBlank { "（未登録）" }}"
-            lines += "商品  \${u.product.ifBlank { "（未登録）" }}"
-            if (u.location.isNotBlank()) lines += "場所  \${u.location}"
+            lines += "企業  ${u.company.ifBlank { "（未登録）" }}"
+            lines += "商品  ${u.product.ifBlank { "（未登録）" }}"
+            if (u.location.isNotBlank()) lines += "場所  ${u.location}"
             return lines.joinToString("\n")
         }
     }
